@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="在浏览器本地提取红色和蓝色印章，导出透明 PNG。">
+  <title>印章提取</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./extract.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <header class="top"><div class="shell top-inner">
+    <div class="brand"><span class="brand-icon" aria-hidden="true">印</span> 印章提取</div>
+    <div class="privacy"><span></span> 图片仅在本机处理</div>
+  </div></header>
+  <main class="shell">
+    <section class="intro">
+      <div>
+        <h1>从图片提取印章</h1>
+        <p>保留印迹的浓淡与纹理，导出透明背景 PNG。</p>
+      </div>
+      <div class="import">
+        <button id="choose" class="button soft"><span aria-hidden="true">↑</span> 选择图片</button>
+        <button id="sample" class="button">加载示例</button>
+        <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/avif" hidden>
+        <small>支持拖入或粘贴图片 · JPG / PNG / WebP</small>
+      </div>
+    </section>
+    <div class="desk">
+      <section class="workspace" aria-label="图片对比">
+        <div class="workspace-top"><h2>提取工作区</h2><span id="file-info"></span></div>
+        <div class="compare">
+          <section class="pane" aria-label="原始图片">
+            <div class="pane-head"><h3>原始图片</h3><button id="clear-crop" class="text-button" hidden>取消选区</button></div>
+            <div class="stage paper" id="source-stage">
+              <div class="source-wrap" id="source-wrap">
+                <canvas id="source" aria-label="原图，开启框选后可拖动选区"></canvas>
+                <div id="selection" hidden></div>
+              </div>
+            </div>
+            <div class="pane-foot"><span id="source-caption">内置模拟扫描件</span><button id="crop" class="text-button" aria-pressed="false">框选区域</button></div>
+          </section>
+          <section class="pane" aria-label="提取结果">
+            <div class="pane-head"><h3>提取结果</h3><div class="toggle backgrounds" role="group" aria-label="预览背景">
+              <button type="button" data-bg="checker" aria-label="棋盘格背景" aria-pressed="true"><span class="swatch checker"></span></button>
+              <button type="button" data-bg="white" aria-label="白色背景" aria-pressed="false"><span class="swatch white"></span></button>
+              <button type="button" data-bg="dark" aria-label="深色背景" aria-pressed="false"><span class="swatch dark"></span></button>
+            </div></div>
+            <div class="stage checker" id="result-stage">
+              <canvas id="result" aria-label="透明印章预览" hidden></canvas>
+              <p id="placeholder" class="placeholder" hidden></p>
+            </div>
+            <div class="pane-foot"><span id="result-caption"></span><span>PNG</span></div>
+          </section>
+        </div>
+        <div class="status" id="status" role="status" aria-live="polite"></div>
+      </section>
+      <aside class="settings" aria-label="提取设置">
+        <div class="settings-top"><h2>提取设置</h2><button id="reset" class="text-button">恢复默认</button></div>
+        <div class="settings-body">
+          <div class="setting">
+            <h3>印章颜色</h3>
+            <div class="toggle colors" role="group" aria-label="印章颜色">
+              <button data-ink="auto" aria-pressed="true">自动</button>
+              <button data-ink="red" aria-pressed="false"><i class="dot red"></i>红章</button>
+              <button data-ink="blue" aria-pressed="false"><i class="dot blue"></i>蓝章</button>
+            </div>
+          </div>
+          <div class="setting">
+            <div class="setting-label"><label for="sensitivity">浅印保留</label><output id="sensitivity-value" for="sensitivity">60</output></div>
+            <input id="sensitivity" type="range" min="0" max="100" value="60">
+            <div class="range-label"><span>干净</span><span>保留浅色</span></div>
+          </div>
+          <div class="setting">
+            <div class="setting-label"><label for="strength">印色浓度</label><output id="strength-value" for="strength">100%</output></div>
+            <input id="strength" type="range" min="50" max="175" value="100" step="5">
+            <div class="range-label"><span>淡</span><span>浓</span></div>
+          </div>
+          <div class="checks">
+            <label><input type="checkbox" id="clean" checked> <span>去除零散色点</span></label>
+            <label><input type="checkbox" id="trim" checked> <span>裁掉透明空白</span></label>
+            <label><input type="checkbox" id="white-export"> <span>以白底导出</span></label>
+          </div>
+        </div>
+        <div class="export"><button id="download" class="button primary" disabled><span aria-hidden="true">↓</span> 下载透明 PNG</button></div>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>
