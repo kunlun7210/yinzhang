@@ -14,14 +14,41 @@ function extractSeal(pixels, width, height, options) {
     return (first + second) * .5 * hue;
   }
 
+  // A light cast at the page edges can otherwise outweigh a small stamp.
+  function paperLevel(blue) {
+    const values = [];
+    let visible = 0;
+    function sample(x, y) {
+      const i = 4 * (y * width + x);
+      if (pixels[i + 3] < 240) return;
+      visible++;
+      const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+      if (Math.min(r, g, b) >= 185 && Math.max(r, g, b) - Math.min(r, g, b) <= 38) {
+        values.push(chroma(r, g, b, blue));
+      }
+    }
+    for (let x = 0; x < width; x += Math.max(1, Math.ceil(width / 160))) {
+      sample(x, 0);
+      sample(x, height - 1);
+    }
+    for (let y = 0; y < height; y += Math.max(1, Math.ceil(height / 160))) {
+      sample(0, y);
+      sample(width - 1, y);
+    }
+    if (!values.length || values.length < visible * .65) return 0;
+    values.sort((a, b) => a - b);
+    return values[Math.floor(values.length / 2)];
+  }
+
   function stats(blue) {
+    const paper = paperLevel(blue);
     const histogram = new Float64Array(256);
     let weight = 0;
     const stride = Math.max(1, Math.floor(Math.sqrt(width * height / 90000)));
     for (let y = 0; y < height; y += stride) {
       for (let x = 0; x < width; x += stride) {
         const i = (y * width + x) * 4;
-        const score = chroma(pixels[i], pixels[i + 1], pixels[i + 2], blue) * pixels[i + 3] / 255;
+        const score = (chroma(pixels[i], pixels[i + 1], pixels[i + 2], blue) - paper) * pixels[i + 3] / 255;
         if (score <= cut + 2) continue;
         const contribution = Math.sqrt(score - cut);
         histogram[Math.floor(score)] += contribution;
@@ -34,7 +61,7 @@ function extractSeal(pixels, width, height, options) {
       target -= histogram[i];
       peak = i;
     }
-    return { blue, weight, peak };
+    return { blue, weight, peak, paper };
   }
 
   const red = options.ink === "blue" ? null : stats(false);
@@ -48,7 +75,7 @@ function extractSeal(pixels, width, height, options) {
 
   for (let n = 0, i = 0; n < scores.length; n++, i += 4) {
     const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
-    const value = chroma(r, g, b, ink.blue);
+    const value = Math.max(0, chroma(r, g, b, ink.blue) - ink.paper);
     const opacity = pixels[i + 3] / 255;
     const effective = value * opacity;
     if (value >= sampleThreshold && opacity > .75) {

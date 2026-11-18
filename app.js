@@ -9,6 +9,7 @@ const colorButtons = [...document.querySelectorAll("[data-ink]")];
 const backgroundButtons = [...document.querySelectorAll("[data-bg]")];
 const defaults = { ink: "auto", sensitivity: 60, strength: 100, clean: true, trim: true };
 let name = "", originalSize = "", scaled = false, loaded = false, isSample = false;
+let decoding = false;
 let region = null, selecting = false, drag = null;
 let ink = defaults.ink, revision = 0, loading = 0, timer, worker, running = false, waiting = false;
 
@@ -102,7 +103,9 @@ function queue() {
 
 function complete(job, output) {
   running = false;
-  if (job === revision) render(output);
+  if (job === revision) {
+    try { render(output); } catch { processingFailed(); }
+  }
   if (waiting) process();
 }
 
@@ -120,7 +123,7 @@ function render(output) {
   resultContext.putImageData(new ImageData(output.pixels, output.width, output.height), 0, 0);
   fit(result, byId("result-stage"));
   byId("result-caption").textContent = `${output.width} × ${output.height}`;
-  byId("download").disabled = false;
+  byId("download").disabled = decoding;
   const label = output.color === "red" ? "红章" : "蓝章";
   report(`${ink === "auto" ? "自动识别为" : "已提取"}${label}${scaled ? ` · 大图已缩至 ${source.width} × ${source.height}` : ""}`);
 }
@@ -133,16 +136,16 @@ function process() {
   const area = region || { x: 0, y: 0, width: source.width, height: source.height };
   const { x, y, width, height } = area;
   const options = settings();
-  const pixels = sourceContext.getImageData(x, y, width, height).data;
-  if (worker) {
-    worker.postMessage({ job, pixels, width, height, options }, [pixels.buffer]);
-    return;
-  }
   try {
+    const pixels = sourceContext.getImageData(x, y, width, height).data;
+    if (worker) {
+      worker.postMessage({ job, pixels, width, height, options }, [pixels.buffer]);
+      return;
+    }
     complete(job, extractSeal(pixels, width, height, options));
   } catch {
     running = false;
-    report("提取失败，请试试较小的图片。", true);
+    processingFailed();
   }
 }
 
@@ -172,27 +175,55 @@ try {
   worker = null;
 }
 
+function processingFailed() {
+  result.hidden = true;
+  byId("placeholder").hidden = false;
+  byId("placeholder").textContent = "提取失败";
+  byId("result-caption").textContent = "—";
+  byId("download").disabled = true;
+  report("请缩小选区或重新选择图片。", true);
+}
+
+function importMessage(message, error = false) {
+  const notice = byId("import-message");
+  notice.textContent = message;
+  notice.hidden = !message;
+  notice.dataset.error = error;
+}
+
 function importImage(file) {
   if (!file) return;
   const request = ++loading;
+  decoding = false;
+  byId("download").disabled = running || waiting || result.hidden;
   if (file.size > 40 * 1024 * 1024) {
-    report("图片超过 40 MB，请选较小的图片。", true);
+    importMessage("图片超过 40 MB，请选较小的图片。", true);
     return;
   }
+  decoding = true;
+  byId("download").disabled = true;
+  importMessage("正在读取图片…");
   const image = new Image();
   const url = URL.createObjectURL(file);
   image.onload = () => {
     try {
-      if (request === loading) applySource(image, file.name || "粘贴图片");
+      if (request !== loading) return;
+      decoding = false;
+      applySource(image, file.name || "粘贴图片");
+      importMessage("");
     } catch {
-      report("无法读取这张图片，请尝试 JPG 或 PNG。", true);
+      processingFailed();
+      importMessage("无法读取这张图片，请尝试 JPG 或 PNG。", true);
     } finally {
       URL.revokeObjectURL(url);
     }
   };
   image.onerror = () => {
     URL.revokeObjectURL(url);
-    if (request === loading) report("无法打开这个文件，请使用 JPG、PNG 或 WebP 图片。", true);
+    if (request !== loading) return;
+    decoding = false;
+    byId("download").disabled = running || waiting || result.hidden;
+    importMessage("文件无法读取。请选择有效的 JPG、PNG 或 WebP 图片。", true);
   };
   image.src = url;
 }
@@ -286,6 +317,8 @@ function makeSample() {
 }
 
 function loadSample() {
+  decoding = false;
+  importMessage("");
   loading++;
   applySource(makeSample(), "模拟档案扫描件.png", true);
 }
